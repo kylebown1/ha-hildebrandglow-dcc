@@ -325,30 +325,35 @@ class Usage(PollUpdateMixin, HistoricalSensor, SensorEntity):
             return "mdi:fire"
 
     async def async_update_historical(self) -> None:
-        """Fetch new data for the sensor."""
+        """Fetch new data for the sensor, update historical states and set the current state."""
+        # Get the daily readings from the API
+        readings = await daily_data(self.hass, self.resource)
+        if readings is None:
+            _LOGGER.error("No readings returned from daily_data")
+            return
+    
+        # Build the list of historical states using the readings
+        hist_states = []
+        for reading in readings:
+            hist_states.append(
+                HistoricalState(
+                    state=reading[1].value,
+                    dt=dtutil.as_local(reading[0] + timedelta(minutes=1))
+                )
+            )
+        self._attr_historical_states = hist_states
+    
+        # Set the sensor's current (native) state using the latest reading
+        try:
+            latest_value = readings[-1][1].value
+            self._attr_native_value = round(latest_value, 2)
+        except (IndexError, TypeError) as error:
+            _LOGGER.error("Error extracting latest reading for native value: %s", error)
+    
+        # Mark the sensor as initialised if it hasn't been already
         if not self.initialised:
-            readings = await daily_data(self.hass, self.resource)
-            hist_states = []
-            for reading in readings:
-                hist_states.append(HistoricalState(  # noqa: PERF401
-                    state = reading[1].value,
-                    # add 1 minute to date so it can correctly call into the hour group
-                    dt = dtutil.as_local(reading[0] + timedelta(minutes=1))
-                ))
-            self._attr_historical_states = hist_states
             self.initialised = True
-        else:
-            if await should_update():
-                # Only update the sensor if it's between 1-5 or 31-35minutes past the hour
-                readings = await daily_data(self.hass, self.resource)
-                hist_states = []
-                for reading in readings:
-                    hist_states.append(HistoricalState(  # noqa: PERF401
-                        state = reading[1].value,
-                        dt = dtutil.as_local(reading[0] + timedelta(minutes=1))
-                    ))
-                self._attr_historical_states = hist_states
-
+    
     @property
     def statistic_id(self) -> str:
         return self.entity_id
