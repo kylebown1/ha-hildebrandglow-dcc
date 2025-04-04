@@ -1,3 +1,3 @@
 """Constants for the Hildebrand Glow (DCC) integration."""
 
-DOMAIN = "hildebrandglow_dcc"
+DOMAIN = "hildebrandglow_dcc_kyle"
