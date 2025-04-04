@@ -326,7 +326,6 @@ class Usage(PollUpdateMixin, HistoricalSensor, SensorEntity):
 
     async def async_update_historical(self) -> None:
         """Fetch new data for the sensor, update historical states and set the current state."""
-        # Get the daily readings from the API
         readings = await daily_data(self.hass, self.resource)
         if readings is None:
             _LOGGER.error("No readings returned from daily_data")
@@ -349,11 +348,16 @@ class Usage(PollUpdateMixin, HistoricalSensor, SensorEntity):
             self._attr_native_value = round(latest_value, 2)
         except (IndexError, TypeError) as error:
             _LOGGER.error("Error extracting latest reading for native value: %s", error)
+            self._attr_native_value = None
     
-        # Mark the sensor as initialised if it hasn't been already
+        # Write the new state so that Home Assistant and the recorder have an updated record.
+        self.async_write_ha_state()
+    
+        # Mark initialisation as complete if not already set
         if not self.initialised:
             self.initialised = True
-    
+
+
     @property
     def statistic_id(self) -> str:
         return self.entity_id
